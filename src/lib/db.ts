@@ -4,12 +4,17 @@ import initSqlJs from 'sql.js';
 let SQL: SqlJsStatic;
 let db: Database;
 
-export async function init (): P<void> {
-  if (SQL) return;
+export async function init (): P<boolean> {
+  if (SQL) return true;
 
-  SQL = await initSqlJs({
-    locateFile: file => `https://sql.js.org/dist/${file}`
-  });
+  try {
+    SQL = await initSqlJs({
+      locateFile: file => `https://sql.js.org/dist/${file}`
+    });
+    return true;
+  } catch (error) {
+    return false;
+  }
 }
 
 export async function loadDB (file: File): P<void> {
@@ -48,14 +53,19 @@ export function del (table: string, PK: string, id: any): void {
 }
 
 export function exportDB (filename = 'database.sqlite'): void {
-  const binaryArray = db.export();
-  const blob = new Blob([binaryArray], { type: 'application/octet-stream' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(url);
+  let err = false;
+  try {
+    const binaryArray = db.export();
+    const blob = new Blob([binaryArray], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    err = error;
+  };
 }
 
 export function createDB (): void {
@@ -64,16 +74,20 @@ export function createDB (): void {
 }
 
 export function listTables (): string[] {
-  const stmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table'");
-  const tables: string[] = [];
+  try {
+    const stmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table'");
+    const tables: string[] = [];
 
-  while (stmt.step()) {
-    const row = stmt.getAsObject();
-    if (row.name) tables.push(row.name.toString());
+    while (stmt.step()) {
+      const row = stmt.getAsObject();
+      if (row.name) tables.push(row.name.toString());
+    }
+    stmt.free();
+    return tables;
+  } catch (error) {
+    console.error('Error listing tables:', error);
+    return [];
   }
-  stmt.free();
-
-  return tables;
 }
 
 export function getSchema (table: string): KV<string>[] {
