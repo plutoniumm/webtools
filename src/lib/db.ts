@@ -1,10 +1,11 @@
 import type { Database, SqlJsStatic } from 'sql.js';
 import initSqlJs from 'sql.js';
+import { notify } from '$lib';
 
 let SQL: SqlJsStatic;
 let db: Database;
 
-export async function init (): P<boolean> {
+async function init (): P<boolean> {
   if (SQL) return true;
 
   try {
@@ -13,16 +14,17 @@ export async function init (): P<boolean> {
     });
     return true;
   } catch (error) {
+    notify(400, 'Failed to load SQL.js');
     return false;
   }
 }
 
-export async function loadDB (file: File): P<void> {
+async function loadDB (file: File): P<void> {
   const buffer = await file.arrayBuffer();
   db = new SQL.Database(new Uint8Array(buffer));
 }
 
-export function readTable (table: string, offset = 0, limit = 100): KV<any>[] {
+function readTable (table: string, offset = 0, limit = 100): KV<any>[] {
   const stmt = db.prepare(`SELECT * FROM ${table} LIMIT ? OFFSET ?`);
   stmt.bind([limit, offset]);
   const rows: KV<any>[] = [];
@@ -35,7 +37,7 @@ export function readTable (table: string, offset = 0, limit = 100): KV<any>[] {
   return rows;
 }
 
-export function upd (table: string, data: KV<any>, PK: string, id: any): void {
+function upd (table: string, data: KV<any>, PK: string, id: any): void {
   const setClause = Object
     .keys(data)
     .map(col => `${col} = ?`)
@@ -46,14 +48,13 @@ export function upd (table: string, data: KV<any>, PK: string, id: any): void {
   stmt.free();
 }
 
-export function del (table: string, PK: string, id: any): void {
+function del (table: string, PK: string, id: any): void {
   const stmt = db.prepare(`DELETE FROM ${table} WHERE ${PK} = ?`);
   stmt.run([id]);
   stmt.free();
 }
 
-export function exportDB (filename = 'database.sqlite'): void {
-  let err = false;
+function exportDB (filename = 'database.sqlite'): void {
   try {
     const binaryArray = db.export();
     const blob = new Blob([binaryArray], { type: 'application/octet-stream' });
@@ -64,16 +65,17 @@ export function exportDB (filename = 'database.sqlite'): void {
     anchor.click();
     URL.revokeObjectURL(url);
   } catch (error) {
-    err = error;
+    notify(400, 'Failed to export database');
+    console.error('Error exporting database:', error);
   };
 }
 
-export function createDB (): void {
+function createDB (): void {
   db = new SQL.Database();
   db.run('VACUUM');
 }
 
-export function listTables (): string[] {
+function listTables (): string[] {
   try {
     const stmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table'");
     const tables: string[] = [];
@@ -86,11 +88,27 @@ export function listTables (): string[] {
     return tables;
   } catch (error) {
     console.error('Error listing tables:', error);
+    notify(400, 'Failed to list tables');
     return [];
   }
+};
+
+function addRow (table: string, data: KV<any>): void {
+  const columns = Object.keys(data).join(', ');
+  const placeholders = Object.keys(data).map(() => '?').join(', ');
+
+  const stmt = db.prepare(`INSERT INTO ${table} (${columns}) VALUES (${placeholders})`);
+  stmt.run(Object.values(data));
+  stmt.free();
 }
 
-export function getSchema (table: string): KV<string>[] {
+function addCol (table: string, colName: string, colType: string = 'TEXT'): void {
+  const stmt = db.prepare(`ALTER TABLE ${table} ADD COLUMN ${colName} ${colType}`);
+  stmt.run();
+  stmt.free();
+}
+
+function getSchema (table: string): KV<string>[] {
   const stmt = db.prepare(`PRAGMA table_info(${table})`);
   const schema: KV<string>[] = [];
 
@@ -101,4 +119,25 @@ export function getSchema (table: string): KV<string>[] {
   stmt.free();
 
   return schema;
+}
+
+
+export const IO = {
+  init: init,
+  export: exportDB
+}
+
+export const SCHEMA = {
+  create: createDB,
+  load: loadDB,
+  table: readTable,
+  list: listTables,
+  schema: getSchema,
+}
+
+export const EDIT = {
+  del: del,
+  upd: upd,
+  row: addRow,
+  col: addCol
 }
