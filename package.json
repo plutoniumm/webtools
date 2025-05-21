@@ -5,7 +5,8 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
-		"build": "vite build"
+		"build": "vite build",
+		"deploy": "npx gh-pages -d build"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-static": "^3.0.8",
@@ -23,11 +24,9 @@
 		]
 	},
 	"dependencies": {
-		"@rollup/plugin-dsv": "^3.0.5",
 		"@rollup/rollup-darwin-arm64": "^4.41.0",
-		"flatto": "^0.0.1",
+		"@rollup/plugin-dsv": "^3.0.5",
 		"gridjs": "^6.2.0",
-		"gridjs-svelte": "^2.1.1",
 		"sql.js": "^1.13.0"
 	}
 }
